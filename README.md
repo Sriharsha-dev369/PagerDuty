@@ -307,6 +307,8 @@ Build **in order** — each phase should be working, tested, and committed befor
 
 - [x] **Phase 0 — Foundation:** scaffold, monorepo structure, tooling ✅
 - [ ] **Phase 1 — Core Domain:** Users, Teams, Services, **Incident CRUD + state machine** (`triggered → acknowledged → resolved`), severity levels, activity log
+  - [ ] Seed script (`npm run seed`) — realistic fake teams, users, services, incidents
+  - [ ] Postman collection — all endpoints documented with example request/response
 - [ ] **Phase 2 — Auth & RBAC:** JWT access + refresh tokens, bcrypt, roles (`admin` / `on‑call` / `viewer`), guards
 - [ ] **Phase 3 — Monitoring:** cron health‑check scheduler, auto‑incident on failure, health history
 - [ ] **Phase 4 — On‑Call Scheduling:** weekly rotations, auto‑rotate, manual overrides, **auto‑assign incidents** to current on‑call
@@ -315,6 +317,8 @@ Build **in order** — each phase should be working, tested, and committed befor
 - [ ] **Phase 7 — Inbound Webhooks:** ingest Prometheus/Grafana‑style payloads → auto‑create incidents
 - [ ] **Phase 8 — Analytics:** MTTR, uptime %, incident heatmap by day/hour
 - [ ] **Phase 9 — Frontend & Deployment:** React + Tailwind client, full **Docker Compose** stack (API + PostgreSQL + Redis)
+  - [ ] Deploy to Railway / Render (live URL — PostgreSQL + Redis + API)
+  - [ ] End‑to‑end demo script (`demo.sh`) — scripted curl sequence that walks through the full incident lifecycle
 
 ---
 
