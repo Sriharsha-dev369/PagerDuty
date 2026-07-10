@@ -130,3 +130,32 @@ AppModule (root)
 Each feature module is **self-contained** (controller + service + DTOs) and registered once in
 `AppModule`. Shared infra (`Prisma`, `Config`) is `@Global`, so features inject it without re-importing.
 Build order is dependency-driven — see [dependency-graph.md](./dependency-graph.md).
+
+| Module          | Responsibility                                            |
+| --------------- | --------------------------------------------------------- |
+| `auth`          | Login, JWT issue/refresh, guards, RBAC decorators         |
+| `users`         | User CRUD, profile                                        |
+| `teams`         | Teams + membership management                             |
+| `services`      | Register/manage monitored services                        |
+| `incidents`     | Incident CRUD + lifecycle state machine + activity log    |
+| `monitoring`    | Cron health‑check scheduler → auto‑incident               |
+| `on-call`       | Rotations, shifts, overrides, on‑call resolution          |
+| `notifications` | Channels (email/webhook/WS) + queued delivery with retry  |
+| `webhooks`      | Inbound alert ingestion → incident creation               |
+| `analytics`     | MTTR, uptime, heatmaps                                     |
+| `common`        | Guards, interceptors, filters, shared decorators          |
+
+---
+
+## 7. Future Hardening (Stretch)
+
+Not required for the core phases, but these take the project from "impressive demo" to
+"production-minded" — recommended once the core phases ship:
+
+- [ ] **Idempotency keys** on the inbound webhook endpoint (prevent duplicate incidents)
+- [ ] **Rate limiting** on public/auth endpoints
+- [ ] **Structured logging** (pino) + request correlation IDs
+- [ ] **Health / readiness probes** (`/health`, `/ready`)
+- [ ] **Graceful shutdown** (drain queue, close DB)
+- [ ] **Database migrations** workflow (Prisma Migrate)
+- [ ] **CI pipeline** (GitHub Actions: lint + test on every push)

@@ -101,25 +101,9 @@ The project is **backend‑first by design**: the API is the star, and the front
 
 ## 🏗️ Architecture
 
-```mermaid
-flowchart LR
-    client["React Client<br/>(Tailwind)"] -->|REST + WebSocket| api
-    ext["External Monitors<br/>Prometheus / Grafana"] -->|inbound webhook| api
+The core loop: **watch a service → raise an incident → route to on‑call → notify → repeat.** NestJS backend, PostgreSQL + Prisma for persistence, a Redis‑backed job queue for notifications, WebSockets for live updates.
 
-    subgraph server["NestJS Backend"]
-        api["REST API + WS Gateway"] --> svc["Domain Services"]
-        sched["Health‑check Scheduler<br/>(cron)"] --> svc
-        svc --> queue["Notification Queue<br/>(retry + backoff)"]
-        queue --> notif["Email · Webhook · WebSocket"]
-    end
-
-    svc --> db[("PostgreSQL")]
-    svc --> redis[("Redis")]
-    queue --> redis
-    notif -->|outbound webhook| slack["Slack / Discord"]
-```
-
-**Flow in words:** a service is polled on a schedule → if it fails, an incident is auto‑created → it is assigned to the current on‑call engineer → a notification job is queued → delivered by email/webhook/WebSocket with retries → every step is written to the incident's activity log.
+Full runtime topology, layered request flow, and where cross‑cutting concerns live: **[docs/architecture.md](./docs/architecture.md)**.
 
 ---
 
@@ -146,53 +130,17 @@ flowchart LR
 
 ## 🗃️ Domain Model
 
-The core entities you will build (and their key relationships):
+Nine entities, built one slice at a time — `User`, `Team`, `Service`, `Incident` (+ its activity log), `OnCallSchedule`/`Shift`, `Notification`, `HealthCheck`. `User` is the hub everything else points at.
 
-| Entity            | Key Fields                                                                  | Relationships                      |
-| ----------------- | --------------------------------------------------------------------------- | ---------------------------------- |
-| **User**          | `id`, `name`, `email`, `passwordHash`, `role`                               | belongs to many Teams              |
-| **Team**          | `id`, `name`                                                                | has many Users, owns many Services |
-| **Service**       | `id`, `name`, `healthEndpointUrl`, `status`                                 | owned by a Team, has Incidents     |
-| **Incident**      | `id`, `severity (P1‑P3)`, `state`, `createdAt`, `acknowledgedAt`, `resolvedAt` | belongs to a Service, assigned User |
-| **IncidentEvent** | `id`, `action`, `actor`, `timestamp`                                        | belongs to an Incident (activity log) |
-| **OnCallSchedule**| `id`, `rotationType`, `intervalDays`                                        | belongs to a Team                  |
-| **OnCallShift**   | `id`, `startsAt`, `endsAt`, `isOverride`                                     | belongs to a Schedule + User       |
-| **Notification**  | `id`, `channel`, `status`, `attempts`, `lastError`                          | belongs to an Incident             |
-| **HealthCheck**   | `id`, `status`, `latencyMs`, `checkedAt`                                     | belongs to a Service (time‑series) |
-
-```mermaid
-erDiagram
-    TEAM ||--o{ USER : "has members"
-    TEAM ||--o{ SERVICE : owns
-    TEAM ||--o{ ONCALLSCHEDULE : defines
-    ONCALLSCHEDULE ||--o{ ONCALLSHIFT : contains
-    USER ||--o{ ONCALLSHIFT : "is on call"
-    SERVICE ||--o{ INCIDENT : raises
-    SERVICE ||--o{ HEALTHCHECK : "polled into"
-    INCIDENT ||--o{ INCIDENTEVENT : logs
-    INCIDENT ||--o{ NOTIFICATION : triggers
-    USER ||--o{ INCIDENT : "assigned to"
-```
+Full field list, relationships, and design rules: **[docs/data-model.md](./docs/data-model.md)**.
 
 ---
 
 ## 🧩 Module Map
 
-Each feature is its own NestJS module (controller · service · DTOs · entities):
+Eleven NestJS feature modules — `auth`, `users`, `teams`, `services`, `incidents`, `monitoring`, `on-call`, `notifications`, `webhooks`, `analytics`, `common` — each self‑contained with its own controller, service, and DTOs.
 
-| Module          | Responsibility                                            |
-| --------------- | --------------------------------------------------------- |
-| `auth`          | Login, JWT issue/refresh, guards, RBAC decorators         |
-| `users`         | User CRUD, profile                                        |
-| `teams`         | Teams + membership management                             |
-| `services`      | Register/manage monitored services                        |
-| `incidents`     | Incident CRUD + lifecycle state machine + activity log    |
-| `monitoring`    | Cron health‑check scheduler → auto‑incident               |
-| `on-call`       | Rotations, shifts, overrides, on‑call resolution          |
-| `notifications` | Channels (email/webhook/WS) + queued delivery with retry  |
-| `webhooks`      | Inbound alert ingestion → incident creation               |
-| `analytics`     | MTTR, uptime, heatmaps                                     |
-| `common`        | Guards, interceptors, filters, shared decorators          |
+Per‑module responsibilities and how they compose into `AppModule`: **[docs/architecture.md](./docs/architecture.md#6-module-composition)**.
 
 ---
 
@@ -341,15 +289,7 @@ Build **in order** — each phase should be working, tested, and committed befor
 
 ## 🛡️ Production Hardening (Stretch)
 
-Not in the original scope, but adding these takes the project from "impressive demo" to "production‑minded" — recommended once the core phases ship:
-
-- [ ] **Idempotency keys** on the inbound webhook endpoint (prevent duplicate incidents)
-- [ ] **Rate limiting** on public/auth endpoints
-- [ ] **Structured logging** (pino) + request correlation IDs
-- [ ] **Health / readiness probes** (`/health`, `/ready`)
-- [ ] **Graceful shutdown** (drain queue, close DB)
-- [ ] **Database migrations** workflow (Prisma Migrate)
-- [ ] **CI pipeline** (GitHub Actions: lint + test on every push)
+Not in the original scope, but adding these takes the project from "impressive demo" to "production‑minded" — recommended once the core phases ship. Full checklist: **[docs/architecture.md](./docs/architecture.md#7-future-hardening-stretch)**.
 
 ---
 

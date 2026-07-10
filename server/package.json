@@ -54,7 +54,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
@@ -73,5 +73,12 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "allowScripts": {
+    "@nestjs/core@11.1.24": true,
+    "@prisma/engines@7.8.0": true,
+    "fsevents@2.3.3": true,
+    "prisma@7.8.0": true,
+    "unrs-resolver@1.12.2": true
   }
 }

@@ -11,7 +11,7 @@ Read them in this order:
 |---|-----|---------|-----------|
 | 1 | [conventions.md](./conventions.md) | *How do we name, respond, error, paginate, configure?* — the rules every endpoint obeys | 🔒 decide once, rarely change |
 | 2 | [data-model.md](./data-model.md) | *What are the entities, fields, relations, constraints?* — the hardest thing to change later | 🔒 grows per slice, never reshaped |
-| 3 | [architecture.md](./architecture.md) | *How does a request flow? Where do layers / cross-cutting concerns live?* | 🔒 structural |
+| 3 | [architecture.md](./architecture.md) | *How does a request flow? Where do layers / cross-cutting concerns live? + future hardening backlog* | 🔒 structural |
 | 4 | [dependency-graph.md](./dependency-graph.md) | *What depends on what — so in what order do we build?* | 🔁 reference while sequencing |
 | 5 | [api-contract.md](./api-contract.md) | *Exact endpoints: routes, bodies, responses, errors* | 🔁 detailed per-slice, extended as we go |
 
