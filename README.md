@@ -1,311 +1,236 @@
-<h1 align="center">🚨 PagerDuty‑Lite</h1>
-<p align="center">
-  <strong>A developer incident‑management platform</strong><br/>
-  Real‑time alerting · on‑call scheduling · automated health‑checks · webhook ingestion · resilient notifications
-</p>
+# 🚨 PagerDuty Lite (working title)
 
-<p align="center">
-  <img alt="Status" src="https://img.shields.io/badge/status-early%20development-orange" />
-  <img alt="Backend" src="https://img.shields.io/badge/backend-NestJS-e0234e" />
-  <img alt="Language" src="https://img.shields.io/badge/language-TypeScript-3178c6" />
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue" />
-</p>
+_Trigger → notify → acknowledge/escalate → resolve._
+
+**Status:** Idea, scope & tech stack locked · Data model & ER in progress
+
+A lightweight incident and on-call tracker, inspired by PagerDuty.
+Full-stack learning project and resume piece — scoped, planned, and built
+independently, not generated wholesale.
 
 ---
 
-## 📑 Table of Contents
+## 📑 Contents
 
-1. [Overview](#-overview)
-2. [Why This Project](#-why-this-project)
-3. [Features (A → Z)](#-features-a--z)
-4. [Architecture](#-architecture)
-5. [Tech Stack](#-tech-stack)
-6. [Domain Model](#-domain-model)
-7. [Module Map](#-module-map)
-8. [Frontend Pages](#-frontend-pages)
-9. [Monorepo Structure](#-monorepo-structure)
-10. [Getting Started](#-getting-started)
-11. [Scripts](#-useful-scripts)
-12. [Build Roadmap](#-build-roadmap)
-13. [Concept Coverage](#-concept-coverage)
-14. [Production Hardening](#-production-hardening-stretch)
-15. [License](#-license)
+- [What this is](#-what-this-is)
+- [Who it's for](#-who-its-for)
+- [Tech stack](#-tech-stack)
+- [Core loop (v1, must work end-to-end)](#-core-loop-v1-must-work-end-to-end)
+- [Walking skeleton (first build milestone)](#-walking-skeleton-first-build-milestone)
+- [Domain nouns, relationships & build order](#-domain-nouns-relationships--build-order)
+- [Supporting features](#-supporting-features)
+- [Explicitly out of scope for v1](#-explicitly-out-of-scope-for-v1)
+- [Success metrics (v1)](#-success-metrics-v1)
+- [Later (v2+) — the flagship layer](#-later-v2--the-flagship-layer)
+- [Status](#-status)
 
 ---
 
-## 📖 Overview
+## 📖 What this is
 
-**PagerDuty‑Lite** is a full‑stack incident‑management system inspired by [PagerDuty](https://www.pagerduty.com/). It continuously watches your services, raises incidents when something breaks, routes those incidents to whoever is on call, and notifies them across multiple channels — with retries, real‑time updates, and a full audit trail of everything that happened.
+A "service" (an app, an API, whatever) can have something go wrong.
+Someone is on-call for that service. They get notified, they acknowledge
+or resolve it, and if they don't respond in time, it escalates to the
+next person. That loop is the whole product.
 
-The project is **backend‑first by design**: the API is the star, and the frontend is a thin, functional consumer of it. It is built to exercise the patterns that matter in production backend systems — authentication & RBAC, background scheduling, job queues with retry/backoff, WebSockets, and inbound/outbound webhooks.
-
-> 🚧 **Current status:** Early development. The NestJS backend scaffold and monorepo structure are in place; everything else is tracked on the [Build Roadmap](#-build-roadmap).
-
----
-
-## 💡 Why This Project
-
-- Every backend‑heavy company (fintech, SaaS, infra) runs incident management.
-- It touches **every backend concept worth knowing**: real‑time systems, notifications, scheduling, alerting, auth, and webhooks.
-- The frontend is clearly a **consumer of the backend** — the engineering lives in the API.
-- It is a **rare domain** — most freshers have never built anything in this space, which makes it stand out.
+It is deliberately **not** an exercise in distributed systems — no
+message queues, no microservices, no multi-region anything. One backend,
+one database, one frontend, done well.
 
 ---
 
-## ✨ Features (A → Z)
+## 🎯 Who it's for
 
-### 🔐 Auth & Users
-
-- [ ] JWT authentication with **refresh tokens**
-- [ ] Role‑based access control — `admin` · `on‑call engineer` · `viewer`
-- [ ] Team management (assign members to services)
-
-### 📡 Services & Monitoring
-
-- [ ] Register services (name, owner team, health‑endpoint URL)
-- [ ] Background **health‑check scheduler** (cron‑like, polls endpoints every _N_ seconds)
-- [ ] **Auto‑create an incident** when a service goes down
-
-### 🚨 Incident Lifecycle
-
-- [ ] State machine: `triggered → acknowledged → resolved`
-- [ ] Severity levels: `P1` · `P2` · `P3`
-- [ ] **Auto‑assign** to the on‑call engineer (round‑robin **or** schedule‑based)
-- [ ] Incident **timeline / activity log** (who did what, when)
-
-### 🔔 Notifications
-
-- [ ] **Email** alerts (Nodemailer / Resend)
-- [ ] **Outbound webhook** delivery to external URLs (Slack / Discord style)
-- [ ] **In‑app real‑time** alerts via WebSockets
-- [ ] Notification **retry with exponential backoff** (powered by the job queue)
-
-### 📅 On‑Call Scheduling
-
-- [ ] Define **weekly on‑call rotations** per team
-- [ ] **Auto‑rotate** assignments
-- [ ] **Manually override** schedules
-
-### 📊 Dashboard & Analytics
-
-- [ ] Active incidents, **MTTR** (mean time to resolve), **uptime %**
-- [ ] Service **health history** (time‑series via Redis or PostgreSQL)
-- [ ] Incident **heatmap** by day / hour
-
-### 🪝 Inbound Webhooks
-
-- [ ] Accept alerts from external sources (simulate **Prometheus / Grafana** alerting)
-- [ ] **Parse payload → auto‑create an incident**
+Me, first — this is a portfolio project, not a product with real users.
+Built as if a small team (5–10 people) would actually use it to track
+who's on-call and what's currently broken.
 
 ---
 
-## 🏗️ Architecture
+## 🧰 Tech stack
 
-The core loop: **watch a service → raise an incident → route to on‑call → notify → repeat.** NestJS backend, PostgreSQL + Prisma for persistence, a Redis‑backed job queue for notifications, WebSockets for live updates.
+Decided on purpose, not inherited by default — the backend already
+existed as a scaffold before this README was rewritten, and it was kept
+because it's genuinely the right fit, not out of inertia.
 
-Full runtime topology, layered request flow, and where cross‑cutting concerns live: **[docs/architecture.md](./docs/architecture.md)**.
-
----
-
-## 🧰 Tech Stack
-
-| Layer                | Technology                                  | Used For                                  |
-| -------------------- | ------------------------------------------- | ----------------------------------------- |
-| **Backend**          | [NestJS](https://nestjs.com/) + TypeScript  | REST API, modular architecture, DI        |
-| **Database**         | PostgreSQL + [Prisma](https://prisma.io) ORM | Persistent data + migrations              |
-| **Cache / Broker**   | Redis                                       | Caching, queue backing store, time‑series |
-| **Real‑time**        | WebSockets (Socket.IO)                      | Live in‑app incident alerts               |
-| **Scheduling**       | Cron (`@nestjs/schedule`)                   | Periodic health‑check polling             |
-| **Async Jobs**       | Queue + retry/backoff (BullMQ + Redis)      | Notification delivery, durable work       |
-| **Webhooks**         | Inbound + outbound (HTTP)                   | Ingest alerts, push to Slack/Discord      |
-| **State Management** | Incident lifecycle state machine            | `triggered → acknowledged → resolved`     |
-| **Auth**             | JWT (access + refresh) + bcrypt             | Authentication & RBAC                     |
-| **Frontend**         | React + Tailwind CSS                        | Minimal, functional dashboard             |
-| **Infrastructure**   | Docker Compose                              | Run all services locally                  |
-| **Testing**          | Jest (unit + e2e)                           | Confidence + regression safety            |
-
-> **Pro move:** the async job queue is the backbone — it powers **both** notification delivery _and_ the health‑check scheduling, tying the whole system into one cohesive pipeline.
+| Layer | Choice |
+|---|---|
+| Backend | NestJS + TypeScript |
+| ORM | Prisma |
+| Database | PostgreSQL |
+| Real-time | WebSockets (NestJS's native gateway support) |
+| Email | TBD — decided when the notification piece is actually built |
+| Frontend | React + Vite (SPA, no SSR) |
+| Deployment | Railway |
 
 ---
 
-## 🗃️ Domain Model
+## 🔁 Core loop (v1, must work end-to-end)
 
-Nine entities, built one slice at a time — `User`, `Team`, `Service`, `Incident` (+ its activity log), `OnCallSchedule`/`Shift`, `Notification`, `HealthCheck`. `User` is the hub everything else points at.
-
-Full field list, relationships, and design rules: **[docs/data-model.md](./docs/data-model.md)**.
-
----
-
-## 🧩 Module Map
-
-Eleven NestJS feature modules — `auth`, `users`, `teams`, `services`, `incidents`, `monitoring`, `on-call`, `notifications`, `webhooks`, `analytics`, `common` — each self‑contained with its own controller, service, and DTOs.
-
-Per‑module responsibilities and how they compose into `AppModule`: **[docs/architecture.md](./docs/architecture.md#6-module-composition)**.
-
----
-
-## 🖥️ Frontend Pages
-
-The client is a **thin, functional consumer** of the API — no fancy UI, just the screens needed to operate the platform. Built with React + Tailwind. It follows the standard SaaS flow: a **public** marketing/auth zone, then a **protected** app zone behind login.
-
-### 🌐 Public Zone (no auth required)
-
-| Page / View        | Purpose                                                              | Consumes |
-| ------------------ | ------------------------------------------------------------------- | -------- |
-| 🏠 **Landing / Home** | Explain the product (what it does, key features) + CTA to sign up / log in | —        |
-| 📝 **Sign Up**     | Create an account                                                    | `auth`   |
-| 🔑 **Log In**      | Authenticate, store JWT, handle refresh                             | `auth`   |
-
-### 🔒 Protected Zone (login required)
-
-| Page / View          | Purpose                                                     | Consumes                 |
-| -------------------- | ---------------------------------------------------------- | ------------------------ |
-| 📋 **Incidents List**| Browse incidents, filter by state / severity / service     | `incidents`              |
-| 🔎 **Incident Detail**| Acknowledge / resolve, view full activity timeline        | `incidents`              |
-| 📡 **Services**      | Service grid with live health status, register services    | `services`, `monitoring` |
-| 📅 **On‑Call Schedule**| View current rotation, who's on call, apply overrides    | `on-call`                |
-| 📊 **Analytics**     | MTTR, uptime %, incident heatmap by day/hour               | `analytics`              |
-| 🔔 **Live Alerts**   | Real‑time toast notifications for new/updated incidents     | WebSocket gateway        |
-
-> Keep it lean: a clean landing page + a sidebar app shell is enough. The goal is to **demonstrate the backend**, not win a design award.
-
----
-
-## 📂 Monorepo Structure
-
-```
-PagerDuty/
-├── server/                     # NestJS backend (the core of the project)
-│   ├── src/
-│   │   ├── main.ts             # application entry point
-│   │   ├── app.module.ts       # root module (imports feature modules)
-│   │   ├── auth/               # one folder per feature module
-│   │   ├── users/
-│   │   ├── teams/
-│   │   ├── services/
-│   │   ├── incidents/
-│   │   ├── monitoring/
-│   │   ├── on-call/
-│   │   ├── notifications/
-│   │   ├── webhooks/
-│   │   ├── analytics/
-│   │   └── common/             # guards, interceptors, filters, decorators
-│   └── test/                   # e2e tests
-├── client/                     # React + Tailwind frontend (planned)
-├── .vscode/                    # shared editor settings (TS version pin)
-└── README.md                   # you are here
+```mermaid
+flowchart LR
+    A["Incident created<br/>(manual or webhook)"] --> B["On-call person<br/>notified (email)"]
+    B --> C{"Acknowledged<br/>in time?"}
+    C -- Yes --> D["Resolved<br/>(timeline logged)"]
+    C -- No --> E["Escalate to next<br/>on-call person"]
+    E --> C
 ```
 
+1. An incident is created for a service — manually via the UI, or by
+   hitting a webhook endpoint (simulating a monitoring tool firing an
+   alert)
+2. The on-call person for that service is notified (email)
+3. They acknowledge it (stops escalation), or if they don't respond
+   within a set time, it escalates to the next person on the rotation
+4. Incident gets resolved; the full timeline (created, acked, escalated,
+   resolved, by whom, when) is visible after the fact
+
 ---
 
-## 🚀 Getting Started
+## 🦴 Walking skeleton (first build milestone)
 
-### Prerequisites
+Not the same thing as v1. The walking skeleton is the thinnest possible
+slice that exercises every layer of the architecture — frontend, backend,
+database, one real external effect — end to end. Its only job is to
+prove the wiring works. Everything else in v1 gets layered on top of it
+once it's running.
 
-- **Node.js** ≥ 18 (tested on v20)
-- **npm** ≥ 9
-- _(from Phase 3+)_ **Docker** & **Docker Compose** for PostgreSQL + Redis
+Tested against "if I remove this, does the core loop break?": auth,
+services, severity, and live updates all survive removal — the loop
+still runs without them. Only *some way to know who's on-call* is
+load-bearing, and that can be hardcoded for now.
 
-### 1. Clone
+- 2 seeded users, no real signup/login yet (real auth comes right after)
+- 1 incident, no severity, no service registry
+- Create incident → real email sent to the seeded on-call user
+- Unacknowledged in time → escalates to the second seeded user (proves
+  the timer + state-transition layer actually works, not just the CRUD)
+- Bare, unstyled page: list incidents, one button to acknowledge/resolve
+  — manual refresh is fine here, no WebSocket yet
+- Full timeline visible for that one incident
 
-```bash
-git clone <your-repo-url> PagerDuty
-cd PagerDuty
+Once this works end-to-end, the rest of v1 fills in around it: real
+auth, teams, services, real rotation, severity, dashboard polish, live
+updates.
+
+---
+
+## 🗺️ Domain nouns, relationships & build order
+
+Conceptual pass before the full ER-level data model — the nouns, how
+they relate, and the order they need to be built in.
+
+```mermaid
+flowchart TD
+    User --> Membership
+    Team --> Membership
+    Team --> Service
+    Team --> OnCallRotation
+    OnCallRotation --> RotationMember
+    User --> RotationMember
+    Service --> Incident
+    Incident --> IncidentEvent
+    Incident --> Notification
+    User --> Notification
 ```
 
-### 2. Run the backend
+Build order — each step depends only on what's above it:
 
-```bash
-cd server
-npm install
-npm run start:dev      # watch mode with hot reload
-```
-
-The API starts on **http://localhost:3000**.
-
-### 3. Verify
-
-```bash
-curl http://localhost:3000
-# → Hello World!
-```
-
-> `.env` configuration, database setup, and the full Docker Compose stack are documented here as those phases land.
+1. **User**
+2. **Team**, **Membership** (user ↔ team, carries role)
+3. **Service**, **OnCallRotation** + **RotationMember** (both depend on Team)
+4. **Incident** (depends on Service, and on resolving who's on-call)
+5. **IncidentEvent** (timeline), **Notification** (both depend on Incident)
 
 ---
 
-## 🧪 Useful Scripts
+## 🧩 Supporting features
 
-Run from `server/`:
-
-| Command              | What it does                     |
-| -------------------- | -------------------------------- |
-| `npm run start:dev`  | Start in watch mode (hot reload) |
-| `npm run build`      | Compile to `dist/`               |
-| `npm run start:prod` | Run the compiled build           |
-| `npm run lint`       | Lint with ESLint                 |
-| `npm run test`       | Unit tests                       |
-| `npm run test:e2e`   | End‑to‑end tests                 |
+- Auth: signup/login, basic roles (admin / responder / viewer)
+- Teams, with a single on-call rotation per team (no layered/overlapping
+  schedules — one rotation, one active person at a time)
+- Services, each belonging to a team
+- Severity levels on incidents (P1/P2/P3)
+- Dashboard: active incidents, current on-call per team
+- Live-updating incident list in the UI (no manual refresh)
 
 ---
 
-## 🗺️ Build Roadmap
+## 🚫 Explicitly out of scope for v1
 
-Build **in order** — each phase should be working, tested, and committed before the next. A finished 5‑phase app beats an abandoned 10‑phase skeleton.
+- SMS/phone/Slack notifications
+- Multiple or overlapping schedules
+- Timezone-aware scheduling
+- Status pages
+- Analytics/reporting
+- Multi-tenant billing
+- Mobile app
 
-- [x] **Phase 0 — Foundation:** scaffold, monorepo structure, tooling ✅
-- [ ] **Phase 1 — Core Domain:** Users, Teams, Services, **Incident CRUD + state machine** (`triggered → acknowledged → resolved`), severity levels, activity log
-  - [ ] Seed script (`npm run seed`) — realistic fake teams, users, services, incidents
-  - [ ] Postman collection — all endpoints documented with example request/response
-- [ ] **Phase 2 — Auth & RBAC:** JWT access + refresh tokens, bcrypt, roles (`admin` / `on‑call` / `viewer`), guards
-- [ ] **Phase 3 — Monitoring:** cron health‑check scheduler, auto‑incident on failure, health history
-- [ ] **Phase 4 — On‑Call Scheduling:** weekly rotations, auto‑rotate, manual overrides, **auto‑assign incidents** to current on‑call
-- [ ] **Phase 5 — Notifications:** email + outbound webhooks, **job queue with retry + exponential backoff**
-- [ ] **Phase 6 — Real‑time:** WebSocket gateway, live incident alerts & dashboard updates
-- [ ] **Phase 7 — Inbound Webhooks:** ingest Prometheus/Grafana‑style payloads → auto‑create incidents
-- [ ] **Phase 8 — Analytics:** MTTR, uptime %, incident heatmap by day/hour
-- [ ] **Phase 9 — Frontend & Deployment:** React + Tailwind client, full **Docker Compose** stack (API + PostgreSQL + Redis)
-  - [ ] Deploy to Railway / Render (live URL — PostgreSQL + Redis + API)
-  - [ ] End‑to‑end demo script (`demo.sh`) — scripted curl sequence that walks through the full incident lifecycle
+If scope starts drifting toward any of these, that's a sign to cut, not
+extend.
 
 ---
 
-## ✅ Concept Coverage
+## ✅ Success metrics (v1)
 
-| Concept                          | Covered |
-| -------------------------------- | ------- |
-| REST API design                  | ✅      |
-| Auth & RBAC                       | ✅      |
-| WebSockets / real‑time           | ✅      |
-| Background job processing        | ✅      |
-| Webhook send + receive           | ✅      |
-| Cron / scheduling                | ✅      |
-| State machines                   | ✅      |
-| PostgreSQL + Redis               | ✅      |
-| Docker / local infra             | ✅      |
-| Frontend (functional, not fancy) | ✅      |
+- [ ] Core loop runs end-to-end on a real deployed instance — not just
+      localhost
+- [ ] Escalation timing is covered by an actual test, not eyeballed once
+      and trusted
+- [ ] The whole loop can be demoed live, start to finish, with no manual
+      DB edits or restarts
+- [ ] Every entity and every decision in this README can be explained
+      out loud, unprompted
+- [ ] Nothing exists in the running app that isn't listed in this
+      README's v1 scope
 
 ---
 
-## 🛡️ Production Hardening (Stretch)
+## 🏆 Later (v2+) — the flagship layer
 
-Not in the original scope, but adding these takes the project from "impressive demo" to "production‑minded" — recommended once the core phases ship. Full checklist: **[docs/architecture.md](./docs/architecture.md#7-future-hardening-stretch)**.
+Not part of v1. The goal here is **not** more features — it's making v1
+feel like real software instead of a tutorial project. Most of what makes
+a full-stack project actually impressive is execution quality, not scope.
+
+### 🛠️ Engineering bar (this is most of what "flagship" means)
+
+- Test coverage on the logic that's actually tricky — escalation timing,
+  on-call rotation edges, timezone handling — not just happy-path CRUD
+- CI pipeline: lint + test + build on every push
+- Real deployment: live URL, real Postgres, environment config done
+  properly — not just running on localhost
+- API done right: consistent validation and error responses, pagination
+  on list endpoints — not just "works once in Postman"
+- Frontend polish: loading/error/empty states handled everywhere, not
+  just the happy path
+
+### ✨ Feature additions (kept deliberately small)
+
+- Automated health-check polling — services get polled, incidents
+  auto-create on failure. The one genuinely new capability here: it turns
+  this from a manual incident tool into a monitoring platform
+- Timezone-aware on-call scheduling with manual overrides — this is the
+  "hard to get right" business logic that actually separates working
+  software from a tutorial project
+- Analytics (MTTR, uptime %) — only worth building once there's real
+  incident history behind it; otherwise it's a chart over fake data
+
+### ❌ Cut / decided against (not planned, not deferred — just no)
+
+| Item | Decision |
+|---|---|
+| Multi-channel notifications (Slack/Discord/SMS) | Cut — once email works, another channel is just a different API call, not a new skill |
+| Structured inbound webhook parsing (Prometheus/Grafana payloads) | Cut — redundant with the generic webhook already in v1 |
+| Job queue + retry/backoff (BullMQ + Redis) | Decided against — staying queue-free, retries happen in-process |
+| Docker Compose | Downgraded — optional polish; a live deployment matters more on a resume than local containerization |
 
 ---
 
-<details>
-<summary><strong>📄 Resume Framing</strong></summary>
+## 📌 Status
 
-> Built a full‑stack incident management platform (PagerDuty‑lite) in TypeScript — features real‑time WebSocket alerts, on‑call scheduling, webhook ingestion, automated health‑check polling, and a notification delivery pipeline with retry logic. Deployed via Docker Compose with PostgreSQL + Redis.
+Idea, scope, and tech stack are locked. Data model, ER, and API design are
+being worked out independently, not generated wholesale — this README
+will grow deliberately as those decisions get made.
 
-</details>
-
----
-
-## 📜 License
-
-[MIT](./LICENSE) © 2026
-
----
-
-<p align="center"><sub>Built as a learning‑focused flagship project — backend‑heavy, production‑minded.</sub></p>
+Prior planning docs from an earlier (AI-driven) pass exist in `Olddocs/`
+for reference only. They are not the plan.

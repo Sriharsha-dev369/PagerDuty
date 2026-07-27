@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
@@ -13,18 +11,185 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id           String   @id @default(uuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(VIEWER)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
+// ─────────────────────────────── Enums ───────────────────────────────
 
 enum Role {
   ADMIN
-  ON_CALL
+  RESPONDER
   VIEWER
+}
+
+enum Severity {
+  P1
+  P2
+  P3
+}
+
+enum IncidentStatus {
+  TRIGGERED
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum IncidentSource {
+  MANUAL
+  WEBHOOK
+}
+
+enum IncidentEventType {
+  TRIGGERED
+  NOTIFIED
+  ESCALATED
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum NotificationChannel {
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ─────────────────────────────── Models ──────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships         Membership[]
+  rotationMemberships RotationMember[]
+  assignedIncidents   Incident[]       @relation("assignee")
+  ackedIncidents      Incident[]       @relation("ackedBy")
+  resolvedIncidents   Incident[]       @relation("resolvedBy")
+  authoredEvents      IncidentEvent[]  @relation("eventActor")
+  notifications       Notification[]   @relation("recipient")
+}
+
+model Team {
+  id                       String   @id @default(uuid())
+  name                     String
+  escalationTimeoutMinutes Int      @default(5)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  memberships     Membership[]
+  services        Service[]
+  rotationMembers RotationMember[]
+}
+
+model Membership {
+  id        String   @id @default(uuid())
+  userId    String
+  teamId    String
+  role      Role
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  team Team @relation(fields: [teamId], references: [id])
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+}
+
+model Service {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  teamId         String
+  integrationKey String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  team      Team       @relation(fields: [teamId], references: [id])
+  incidents Incident[]
+
+  @@unique([teamId, name])
+  @@index([teamId])
+}
+
+model RotationMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  userId    String
+  order     Int
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId])
+  @@unique([teamId, order])
+}
+
+model Incident {
+  id                 String         @id @default(uuid())
+  serviceId          String
+  title              String
+  description        String?
+  severity           Severity       @default(P3)
+  status             IncidentStatus @default(TRIGGERED)
+  source             IncidentSource @default(MANUAL)
+  currentOnCallIndex Int            @default(0)
+  assignedUserId     String?
+  acknowledgedAt     DateTime?
+  acknowledgedById   String?
+  resolvedAt         DateTime?
+  resolvedById       String?
+  nextEscalationAt   DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  service        Service         @relation(fields: [serviceId], references: [id])
+  assignedUser   User?           @relation("assignee", fields: [assignedUserId], references: [id])
+  acknowledgedBy User?           @relation("ackedBy", fields: [acknowledgedById], references: [id])
+  resolvedBy     User?           @relation("resolvedBy", fields: [resolvedById], references: [id])
+  events         IncidentEvent[]
+  notifications  Notification[]
+
+  @@index([serviceId])
+  @@index([status])
+  @@index([status, nextEscalationAt])
+  @@index([assignedUserId])
+}
+
+model IncidentEvent {
+  id          String            @id @default(uuid())
+  incidentId  String
+  type        IncidentEventType
+  actorUserId String?
+  message     String?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id])
+  actor    User?    @relation("eventActor", fields: [actorUserId], references: [id])
+
+  @@index([incidentId, createdAt])
+}
+
+model Notification {
+  id         String              @id @default(uuid())
+  incidentId String
+  userId     String
+  channel    NotificationChannel @default(EMAIL)
+  status     NotificationStatus  @default(PENDING)
+  attempts   Int                 @default(0)
+  lastError  String?
+  sentAt     DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  incident Incident @relation(fields: [incidentId], references: [id])
+  user     User     @relation("recipient", fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([incidentId])
 }

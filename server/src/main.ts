@@ -1,3 +1,4 @@
+import 'dotenv/config'; // load server/.env into process.env before anything reads DATABASE_URL
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
