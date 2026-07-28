@@ -2,11 +2,17 @@
 
 _Trigger → notify → acknowledge/escalate → resolve._
 
-**Status:** Idea, scope & tech stack locked · Data model & ER in progress
+**Status:** Design locked · **Backend walking skeleton built & verified** (Slice 1) · frontend next
 
 A lightweight incident and on-call tracker, inspired by PagerDuty.
 Full-stack learning project and resume piece — scoped, planned, and built
 independently, not generated wholesale.
+
+**Design docs:** [`docs/`](./docs/README.md) — [user-stories](./docs/user-stories.md) ·
+[state-machine](./docs/incident-state-machine.md) · [data-model](./docs/data-model.md) ·
+[api-contract](./docs/api-contract.md) · [escalation-flow](./docs/escalation-flow.md) ·
+[architecture](./docs/architecture.md) · [**decisions**](./docs/decisions.md) (every decision + why).
+Progress: [`PROGRESS.md`](./PROGRESS.md).
 
 ---
 
@@ -15,6 +21,7 @@ independently, not generated wholesale.
 - [What this is](#-what-this-is)
 - [Who it's for](#-who-its-for)
 - [Tech stack](#-tech-stack)
+- [Run it yourself](#-run-it-yourself)
 - [Core loop (v1, must work end-to-end)](#-core-loop-v1-must-work-end-to-end)
 - [Walking skeleton (first build milestone)](#-walking-skeleton-first-build-milestone)
 - [Domain nouns, relationships & build order](#-domain-nouns-relationships--build-order)
@@ -58,10 +65,66 @@ because it's genuinely the right fit, not out of inertia.
 | Backend | NestJS + TypeScript |
 | ORM | Prisma |
 | Database | PostgreSQL |
-| Real-time | WebSockets (NestJS's native gateway support) |
-| Email | TBD — decided when the notification piece is actually built |
-| Frontend | React + Vite (SPA, no SSR) |
-| Deployment | Railway |
+| Real-time | WebSockets (NestJS's native gateway support) — later slice |
+| Email | nodemailer + Ethereal (dev); a real provider later |
+| Frontend | React + Vite (SPA, no SSR) — later slice |
+| Deployment | Railway (target) |
+
+> **This is a backend-first project.** It runs locally and is exercised via
+> `curl` + an automated test — there are no real users, no login yet, and no
+> UI in the current slice. The frontend is a later slice.
+
+---
+
+## 🏃 Run it yourself
+
+Everything runs locally. **Prereqs:** Node ≥ 18, PostgreSQL 17 (Homebrew:
+`brew install postgresql@17`), macOS/Linux.
+
+```bash
+# 1. Start Postgres and create the dev database
+brew services start postgresql@17
+createdb pagerduty_dev            # first time only (ignore "already exists")
+
+# 2. Backend setup (from the repo root)
+cd server
+npm install
+cp .env.example .env              # then set USER in DATABASE_URL to your Postgres role
+npx prisma migrate dev            # create tables from the schema
+npx prisma db seed                # 1 team, 1 service, Alice + Bob on-call
+                                  # ← prints the serviceId + integrationKey
+
+# 3. Prove the tricky part works (escalation timing)
+npm test                          # escalation spec goes green
+
+# 4. Run the API
+npm run start                     # http://localhost:3000
+```
+
+**Exercise the core loop** (use the `serviceId` the seed printed):
+
+```bash
+# create an incident → assigned to Alice, first email sent (Ethereal preview URL in the server log)
+curl -XPOST localhost:3000/services/<serviceId>/incidents \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"API 500s spiking","severity":"P1"}'
+
+# view it + its timeline (grab the "id" from the create response)
+curl localhost:3000/incidents/<id>
+
+# if nobody acks within the team's timeout, the 30s scheduler escalates Alice → Bob.
+# acknowledge / resolve (userId from the seed output; no auth yet):
+curl -XPOST localhost:3000/incidents/<id>/ack     -H 'Content-Type: application/json' -d '{"userId":"<bobId>"}'
+curl -XPOST localhost:3000/incidents/<id>/resolve -H 'Content-Type: application/json' -d '{"userId":"<bobId>"}'
+```
+
+The final timeline reads `TRIGGERED → NOTIFIED → ESCALATED → ACKNOWLEDGED → RESOLVED`.
+Emails aren't really delivered — the server log prints an **Ethereal preview URL**
+you can open to see each one.
+
+**New to the code?** Read `docs/plan.md` (where the project is), then
+`docs/decisions.md` (why), then `server/src/incidents/incidents.service.ts`
+(the heart — the whole state machine).
 
 ---
 
