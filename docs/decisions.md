@@ -137,11 +137,23 @@ makes the project defensible in a review.
 ## Infrastructure / tech stack ("senior calls")
 
 ### Queue-free
-- **Decision:** no Redis/BullMQ; escalation via a timestamp + interval poller,
-  notification retry in-process.
-- **Why:** the one thing explicitly cut to keep this full-stack, not a
-  distributed-systems exercise. A poll on an indexed column is plenty at this scale.
-- **Rejected:** a job queue — real infra dependency for no v1 benefit.
+- **Decision:** no Redis/BullMQ; escalation via a timestamp (`nextEscalationAt`)
+  + a 30s interval poll on `idx(status, nextEscalationAt)`; notification retry
+  in-process. The "job" *is* a database row.
+- **Why:**
+  - **Fewer moving parts** — no Redis to run/deploy/secure/pay for/monitor.
+  - **Durability for free** — a pending escalation is a Postgres row, so a restart
+    loses nothing (unlike an in-memory `setTimeout`); no extra infra to get it.
+  - **Transactional consistency** — timer state and business data live in one DB
+    and update together; a separate queue introduces the dual-write drift problem.
+  - **Debuggable** — `SELECT ... WHERE nextEscalationAt < now()` shows what's pending.
+- **Limits (honest):** up to 30s poll latency (fine at minute-scale escalation);
+  a dedicated queue scales better at millions of pending timers; the in-process
+  poller assumes a **single instance** (see Known gaps — concurrency).
+- **Verdict:** the right call for this product at this scale. The standout isn't
+  "avoided Redis" — it's being able to state *when* a durable timestamp beats a
+  queue and *when it breaks down*.
+- **Rejected:** a job queue — real infra dependency for no v1 benefit at this scale.
 
 ### Kept NestJS + Prisma + Postgres on purpose
 - **Decision:** kept the pre-existing backend stack after a deliberate reset.
@@ -182,3 +194,41 @@ makes the project defensible in a review.
   (sidesteps TS5011 output-layout check), a `moduleNameMapper` stripping `.js`
   from the client's ESM specifiers, and `NODE_OPTIONS=--experimental-vm-modules`
   (the Prisma 7 client uses dynamic `import()`).
+
+---
+
+## Known gaps & open decisions
+
+Honest limitations of the current build, and decisions not yet made. Named on
+purpose — reasoning about these openly is itself a senior signal.
+
+### B2B tenancy — no `Organization` layer (open decision, recommended: add it)
+- **Gap:** an on-call tool is inherently **B2B**, but the current model is
+  B2C-shaped: users are global, teams are self-serve, and there is **no
+  `Organization` (tenant) entity and no invite flow**. So there's no coherent
+  answer to "where do a team's users come from" — today only the seed populates
+  them.
+- **Recommended fix (a future slice):** add `Organization` as the tenant —
+  users join an org (create one or accept an emailed invite); teams/services/
+  rotations live under the org; admins invite members by email. This gives a real
+  tenant boundary.
+- **Why it's worth it:** fixes the coherence gap *and* upgrades the system —
+  multi-tenancy (row-level isolation so Org A never sees Org B's data),
+  invitation flow, and tenant-scoped authorization are real B2B engineering.
+- **Why it was deferred:** the walking skeleton only needed 2 seeded users to
+  prove the loop; tenancy is breadth, added after the spine — consistent with the
+  slice philosophy. It is a **product-model gap, not just unbuilt** (the entity is
+  absent from the schema), so it needs an explicit decision before the auth slice.
+
+### Concurrency-safe escalation (known gap, recommended: harden)
+- **Gap:** `escalateDue` does a `findMany` then per-row `update`. Correct on a
+  **single instance**, but two overlapping poller runs (or two app replicas) could
+  double-escalate the same incident.
+- **Recommended fix:** make the escalate step **atomic/idempotent** — a
+  conditional `updateMany` guarded on the row still being due (`status=TRIGGERED
+  AND currentOnCallIndex=<expected>`), so only one runner wins. Small change, big
+  credibility gain (turns "do you understand race conditions?" into a repo artifact).
+
+### Notification retry not yet built
+- Designed (3× ~1 min on `FAILED`) but deferred; today a failed send is recorded
+  `FAILED` and logged. The `Notification` table already supports it.

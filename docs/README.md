@@ -8,11 +8,13 @@ Written from the working code (Slice 1). Read in this order:
 4. [api-contract.md](./api-contract.md) — endpoints
 5. [escalation-flow.md](./escalation-flow.md) — the queue-free timer mechanism
 6. [architecture.md](./architecture.md) — how it's all wired: components, module/DI graph, layers, deployment
-7. [decisions.md](./decisions.md) — **every decision + why + rejected alternative**
-8. [plan.md](./plan.md) — the executed plan (design steps + build slices)
+7. [decisions.md](./decisions.md) — **every decision + why + rejected alternative** (incl. Known gaps & open decisions)
+8. [technical-highlights.md](./technical-highlights.md) — **what stands out, honest gaps, how to level up** (interview-focused)
+9. [plan.md](./plan.md) — the executed plan (design steps + build slices)
 
 Each layer is derived from the one above it. `decisions.md` is the record of why
-each choice was made the way it was.
+each choice was made the way it was; `technical-highlights.md` is the candid read
+of what's impressive and what's still weak.
 
 > Older AI-authored planning docs from before the project reset live in
 > `../Olddocs/` for reference only — they are not the plan.

@@ -25,7 +25,15 @@ Living checklist. `x` = done, ` ` = todo. Grouped by slice.
 - [ ] React + Vite app (list incidents, ack/resolve, timeline; manual refresh)
 - [ ] Wire to the incidents API
 
+## ⏳ Hardening (high-leverage, small)
+- [ ] Atomic/idempotent escalation — conditional `updateMany` so overlapping
+      poller runs can't double-escalate (see docs/technical-highlights.md)
+
 ## ⏳ v1 remaining slices
+- [ ] Frontend walking skeleton (React+Vite: list, timeline, ack/resolve)
+- [ ] **Organization + invites (multi-tenancy)** — B2B tenant boundary; invite
+      users by email; org-scoped teams. Reframes the auth slice. (open decision —
+      see docs/decisions.md → Known gaps)
 - [ ] Auth: signup/login, JWT (replace `userId`-in-body), `GET /auth/me`
 - [ ] Teams + membership CRUD (self-serve create → admin)
 - [ ] Services CRUD (+ integration key)
